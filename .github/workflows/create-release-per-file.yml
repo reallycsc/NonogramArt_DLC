@@ -1,0 +1,46 @@
+name: 每个文件创建单独 Release
+on:
+  workflow_dispatch:  # 手动点一下就运行
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 安装 GitHub CLI
+        run: sudo apt install gh -y
+
+      - name: 为每个文件创建 Release
+        shell: bash
+        run: |
+          # 遍历所有文件（跳过 .git 和 .github 目录）
+          find . -type f \
+            -not -path "./.git/*" \
+            -not -path "./.github/*" | while read file
+          do
+            # 去掉开头的 ./
+            file_path="${file#./}"
+            
+            # 把路径 / 换成 -，变成合法标签
+            tag=$(echo "$file_path" | tr '/' '-')
+            
+            # 如果 Release 已存在，跳过
+            if gh release view "$tag" >/dev/null 2>&1; then
+              echo "✅ 已存在: $file_path"
+              continue
+            fi
+            
+            echo "🚀 创建: $file_path"
+            
+            # 创建 Release（只上传这个文件）
+            gh release create "$tag" "$file_path" \
+              --title "$file_path" \
+              --notes "单独文件发布"
+            
+            sleep 2
+          done
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
